@@ -5,6 +5,8 @@ const video  = document.getElementById('camera');
 const status = document.getElementById('status');
 const info   = document.getElementById('info');
 const courseContent = document.getElementById('course-content');
+const mainTitle = document.querySelector('h1');
+const mainParagraph = document.querySelector('p');
 
 // ===================================================
 // 2. On crée l'objet "Hands" de MediaPipe.
@@ -62,6 +64,20 @@ function isHandOpen(landmarks) {
   return extended >= 3; // main ouverte = au moins 3 doigts tendus
 }
 
+function isHandClosed(landmarks) {
+  const wrist = landmarks[0];
+  const tips  = [8, 12, 16, 20];
+  const pips  = [6, 10, 14, 18];
+  let folded = 0;
+  for (let i = 0; i < tips.length; i++) {
+    if (distance(landmarks[tips[i]], wrist) <
+        distance(landmarks[pips[i]], wrist)) {
+      folded++;
+    }
+  }
+  return folded >= 4; // poing fermé = tous les doigts repliés
+}
+
 // Geste de scroll : POUCE + INDEX repliés
 function isThumbAndIndexClosed(landmarks) {
   const wrist = landmarks[0];
@@ -87,7 +103,7 @@ function isOkGesture(landmarks) {
   const palmSize = distance(landmarks[0], landmarks[5]);
   
   // Si le pouce et l'index sont très proches (moins de 15% de la taille de la paume)
-  // ET que les autres doigts sont tendus (main ouverte)
+  // ET que les autres doigts sont tendus
   const isCircleFormed = thumbIndexDist < palmSize * 0.15;
   const otherFingersExtended = isHandOpen(landmarks);
   
@@ -96,7 +112,6 @@ function isOkGesture(landmarks) {
 
 // ===================================================
 // 5. Réagir aux résultats : on modifie le CSS
-//    et on fait défiler la page.
 // ===================================================
 function onResults(results) {
   // Aucune main détectée
@@ -108,25 +123,33 @@ function onResults(results) {
 
   const landmarks = results.multiHandLandmarks[0];
 
-  // 👌 Geste OK → cacher TOUT le contenu du body
-  if (isOkGesture(landmarks)) {
+  // ✊ Poing fermé → cacher TOUT le contenu
+  if (isHandClosed(landmarks)) {
     courseContent.style.display = 'none';
-    document.querySelector('h1').style.display = 'none';
-    document.querySelector('p').style.display = 'none';
+    mainTitle.style.display = 'none';
+    mainParagraph.style.display = 'none';
     info.style.display = 'none';
-    status.textContent = '👌 Geste OK - Contenu effacé !';
+    status.textContent = '✊ Poing fermé - Contenu caché !';
     return;
-  } else {
-    // Réafficher le contenu si le geste OK n'est plus fait
+  }
+
+  // 👌 Geste OK → réafficher TOUT le contenu
+  if (isOkGesture(landmarks)) {
     courseContent.style.display = 'block';
-    document.querySelector('h1').style.display = 'block';
-    document.querySelector('p').style.display = 'block';
+    mainTitle.style.display = 'block';
+    mainParagraph.style.display = 'block';
+    status.textContent = '👌 Geste OK - Contenu réaffiché !';
+    return;
   }
 
   // ✋ Main ouverte → on AFFICHE la boîte info
-  // ✊ Sinon       → on la CACHE
+  // Sinon → on la CACHE
   if (isHandOpen(landmarks)) {
     info.style.display = 'flex';
+    // Réafficher le contenu si c'était caché
+    courseContent.style.display = 'block';
+    mainTitle.style.display = 'block';
+    mainParagraph.style.display = 'block';
   } else {
     info.style.display = 'none';
   }
