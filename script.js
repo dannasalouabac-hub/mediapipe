@@ -5,8 +5,10 @@ const video  = document.getElementById('camera');
 const status = document.getElementById('status');
 const info   = document.getElementById('info');
 const courseContent = document.getElementById('course-content');
-const mainTitle = document.querySelector('h1');
-const mainParagraph = document.querySelector('p');
+const mainTitle = document.querySelector('#main-page h1');
+const mainParagraph = document.querySelector('#main-page > p');
+const mainPage = document.getElementById('main-page');
+const thumbPage = document.getElementById('thumb-page');
 
 // ===================================================
 // 2. On crée l'objet "Hands" de MediaPipe.
@@ -110,24 +112,77 @@ function isOkGesture(landmarks) {
   return isCircleFormed && otherFingersExtended;
 }
 
+// 👍 Geste Pouce levé : seul le pouce est tendu vers le haut
+function isThumbsUp(landmarks) {
+  const wrist = landmarks[0];
+  const thumbTip = landmarks[4];    // bout du pouce
+  const thumbIp = landmarks[3];     // articulation du pouce
+  const indexTip = landmarks[8];    // bout de l'index
+  const indexPip = landmarks[6];    // articulation de l'index
+  
+  // Le pouce doit être tendu (plus loin du poignet que son articulation)
+  const thumbExtended = distance(thumbTip, wrist) > distance(thumbIp, wrist);
+  
+  // Les autres doigts doivent être repliés (poing fermé)
+  const indexFolded = distance(indexTip, wrist) < distance(indexPip, wrist);
+  
+  // Le pouce doit pointer vers le haut (y plus petit que le poignet = vers le haut de l'image)
+  const thumbPointingUp = thumbTip.y < wrist.y - 0.05;
+  
+  // Vérifier que les autres doigts sont repliés
+  const otherFingersFolded = isHandClosed(landmarks);
+  
+  return thumbExtended && thumbPointingUp && otherFingersFolded;
+}
+
+// Fonction pour afficher la page principale
+function showMainPage() {
+  mainPage.style.display = 'block';
+  thumbPage.style.display = 'none';
+  document.body.style.background = ''; // Réinitialiser le fond
+}
+
+// Fonction pour afficher la page pouce levé
+function showThumbPage() {
+  mainPage.style.display = 'none';
+  thumbPage.style.display = 'flex';
+  document.body.style.background = 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)';
+}
+
 // ===================================================
 // 5. Réagir aux résultats : on modifie le CSS
 // ===================================================
 function onResults(results) {
-  // Aucune main détectée
+  // 🙈 Aucune main détectée → afficher la page principale
   if (!results.multiHandLandmarks ||
       results.multiHandLandmarks.length === 0) {
-    status.textContent = '🙈 Aucune main';
+    status.textContent = '🙈 Aucune main - Retour au cours';
+    showMainPage();
+    // Réafficher tout le contenu
+    courseContent.style.display = 'block';
+    mainTitle.style.display = 'block';
+    if (mainParagraph) mainParagraph.style.display = 'block';
+    info.style.display = 'none';
     return;
   }
 
   const landmarks = results.multiHandLandmarks[0];
 
+  // 👍 Pouce levé → afficher la page spéciale
+  if (isThumbsUp(landmarks)) {
+    status.textContent = '👍 Pouce levé détecté !';
+    showThumbPage();
+    return;
+  }
+
+  // Si on n'est pas en mode pouce levé, s'assurer qu'on est sur la page principale
+  showMainPage();
+
   // ✊ Poing fermé → cacher TOUT le contenu
   if (isHandClosed(landmarks)) {
     courseContent.style.display = 'none';
     mainTitle.style.display = 'none';
-    mainParagraph.style.display = 'none';
+    if (mainParagraph) mainParagraph.style.display = 'none';
     info.style.display = 'none';
     status.textContent = '✊ Poing fermé - Contenu caché !';
     return;
@@ -137,7 +192,7 @@ function onResults(results) {
   if (isOkGesture(landmarks)) {
     courseContent.style.display = 'block';
     mainTitle.style.display = 'block';
-    mainParagraph.style.display = 'block';
+    if (mainParagraph) mainParagraph.style.display = 'block';
     status.textContent = '👌 Geste OK - Contenu réaffiché !';
     return;
   }
@@ -149,7 +204,7 @@ function onResults(results) {
     // Réafficher le contenu si c'était caché
     courseContent.style.display = 'block';
     mainTitle.style.display = 'block';
-    mainParagraph.style.display = 'block';
+    if (mainParagraph) mainParagraph.style.display = 'block';
   } else {
     info.style.display = 'none';
   }
