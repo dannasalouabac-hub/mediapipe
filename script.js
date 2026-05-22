@@ -4,6 +4,7 @@
 const video  = document.getElementById('camera');
 const status = document.getElementById('status');
 const info   = document.getElementById('info');
+const courseContent = document.getElementById('course-content');
 
 // ===================================================
 // 2. On crée l'objet "Hands" de MediaPipe.
@@ -39,17 +40,7 @@ const camera = new Camera(video, {
 camera.start();
 
 // ===================================================
-// 4. Détecter si la main est ouverte
-//
-// MediaPipe renvoie 21 points (landmarks) par main.
-//   - 0  = poignet
-//   - 8  = bout de l'index       | 6  = articulation
-//   - 12 = bout du majeur        | 10 = articulation
-//   - 16 = bout de l'annulaire   | 14 = articulation
-//   - 20 = bout de l'auriculaire | 18 = articulation
-//
-// Astuce : si le bout du doigt est plus LOIN du poignet
-// que son articulation, c'est que le doigt est tendu.
+// 4. Détecter les gestes de la main
 // ===================================================
 function distance(a, b) {
   const dx = a.x - b.x;
@@ -72,9 +63,6 @@ function isHandOpen(landmarks) {
 }
 
 // Geste de scroll : POUCE + INDEX repliés
-//   - index plié : bout (8) plus proche du poignet que l'articulation (6)
-//   - pouce plié : bout (4) proche de la base de l'index (5),
-//     normalisé par la taille de la paume (distance 0 → 5)
 function isThumbAndIndexClosed(landmarks) {
   const wrist = landmarks[0];
 
@@ -85,6 +73,25 @@ function isThumbAndIndexClosed(landmarks) {
   const thumbFolded = distance(landmarks[4], landmarks[5]) < palmSize * 0.6;
 
   return indexFolded && thumbFolded;
+}
+
+// 👌 Geste OK : pouce et index se touchent (formant un cercle)
+function isOkGesture(landmarks) {
+  const thumbTip = landmarks[4];   // bout du pouce
+  const indexTip = landmarks[8];   // bout de l'index
+  
+  // Distance entre le pouce et l'index
+  const thumbIndexDist = distance(thumbTip, indexTip);
+  
+  // Distance de référence : taille de la paume
+  const palmSize = distance(landmarks[0], landmarks[5]);
+  
+  // Si le pouce et l'index sont très proches (moins de 15% de la taille de la paume)
+  // ET que les autres doigts sont tendus (main ouverte)
+  const isCircleFormed = thumbIndexDist < palmSize * 0.15;
+  const otherFingersExtended = isHandOpen(landmarks);
+  
+  return isCircleFormed && otherFingersExtended;
 }
 
 // ===================================================
@@ -101,6 +108,21 @@ function onResults(results) {
 
   const landmarks = results.multiHandLandmarks[0];
 
+  // 👌 Geste OK → cacher TOUT le contenu du body
+  if (isOkGesture(landmarks)) {
+    courseContent.style.display = 'none';
+    document.querySelector('h1').style.display = 'none';
+    document.querySelector('p').style.display = 'none';
+    info.style.display = 'none';
+    status.textContent = '👌 Geste OK - Contenu effacé !';
+    return;
+  } else {
+    // Réafficher le contenu si le geste OK n'est plus fait
+    courseContent.style.display = 'block';
+    document.querySelector('h1').style.display = 'block';
+    document.querySelector('p').style.display = 'block';
+  }
+
   // ✋ Main ouverte → on AFFICHE la boîte info
   // ✊ Sinon       → on la CACHE
   if (isHandOpen(landmarks)) {
@@ -110,14 +132,6 @@ function onResults(results) {
   }
 
   // 🤏 Si POUCE + INDEX sont fermés → on fait défiler la page
-  //    selon la position verticale du poignet.
-  //
-  // landmarks[0].y = position verticale du poignet,
-  //   entre 0 (haut de la webcam) et 1 (bas).
-  //
-  //  - main en HAUT de l'image  → scroll vers le HAUT
-  //  - main en BAS de l'image   → scroll vers le BAS
-  //  - main au milieu           → zone morte (pas de scroll)
   if (isThumbAndIndexClosed(landmarks)) {
     const y = landmarks[0].y;
     if (y < 0.4) {
